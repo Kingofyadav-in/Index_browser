@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Index — New Tab</title>
+<style>
+:root {
+  --bg: #090b10;
+  --surface: #11151d;
+  --surface2: #171d27;
+  --border: #273140;
+  --border2: #3a4657;
+  --accent: #4f8cff;
+  --accent2: #21c187;
+  --text: #edf2f7;
+  --muted: #8994a6;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+body {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.035), transparent 260px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 88px),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+.bg-grid {
+  display: none;
+}
+
+/* ── Layout ── */
+.page {
+  position: relative;
+  width: 100%;
+  max-width: 920px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2.5rem 1.5rem;
+}
+
+/* ── Clock ── */
+.clock-block { text-align: center; }
+.clock {
+  font-size: clamp(2.8rem, 7vw, 4.8rem);
+  font-weight: 650;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1;
+}
+.clock-date {
+  color: var(--muted);
+  font-size: .85rem;
+  letter-spacing: .12rem;
+  text-transform: uppercase;
+  margin-top: .5rem;
+}
+
+/* ── Logo ── */
+.logo-block { text-align: center; }
+.logo {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: .2rem;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: none;
+}
+.logo-tag {
+  color: var(--muted);
+  font-size: .72rem;
+  letter-spacing: .25rem;
+  text-transform: uppercase;
+  margin-top: .3rem;
+}
+
+/* ── Search ── */
+.search-wrap { width: 100%; }
+
+.search-row {
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .85rem 1.1rem;
+  gap: .75rem;
+  transition: border-color .2s, box-shadow .2s;
+}
+.search-row:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,140,255,.18);
+}
+.search-icon { font-size: 1rem; color: var(--muted); flex-shrink: 0; }
+.search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 1rem;
+}
+.search-input::placeholder { color: var(--muted); }
+
+.engine-pill {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--accent);
+  padding: .2rem .65rem;
+  font-size: .72rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .2s;
+  user-select: none;
+}
+.engine-pill:hover { background: rgba(124,111,255,.28); }
+
+.search-hint { display: none; }
+
+/* ── Quick Links ── */
+.shortcuts { width: 100%; }
+.shortcuts-title {
+  color: var(--muted);
+  font-size: .72rem;
+  letter-spacing: .18rem;
+  text-transform: uppercase;
+  margin-bottom: .75rem;
+}
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .6rem;
+}
+.shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .4rem;
+  padding: .9rem .4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: .72rem;
+  text-align: center;
+  transition: border-color .2s, transform .2s, background .2s;
+  cursor: pointer;
+}
+.shortcut:hover {
+  border-color: var(--accent);
+  background: #151b25;
+  transform: translateY(-3px);
+}
+.shortcut-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: #202838;
+  color: var(--accent2);
+  font-size: .8rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.shortcut-label { color: var(--muted); }
+
+/* ── Status Bar ── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .6rem 1.25rem;
+  font-size: .75rem;
+  color: var(--muted);
+  width: 100%;
+  justify-content: center;
+}
+.status-item { display: flex; align-items: center; gap: .4rem; }
+.dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot.green  { background: var(--green);  box-shadow: 0 0 6px var(--green); }
+.dot.yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.dot.red    { background: var(--red);    box-shadow: 0 0 6px var(--red); }
+.dot.gray   { background: var(--muted); }
+.dot.pulse  { animation: dotpulse 2s ease-in-out infinite; }
+@keyframes dotpulse {
+  0%,100%{opacity:1;} 50%{opacity:.35;}
+}
+.divider { width: 1px; height: 16px; background: var(--border); }
+
+@media (max-width: 760px) {
+  .page {
+    min-height: auto;
+    justify-content: flex-start;
+    padding: 2rem 1rem;
+  }
+
+  .shortcuts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-bar {
+    flex-wrap: wrap;
+    gap: .75rem;
+  }
+
+  .divider {
+    display: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .clock {
+    font-size: 2.4rem;
+  }
+
+  .logo {
+    font-size: 2rem;
+  }
+
+  .search-row {
+    flex-wrap: wrap;
+  }
+
+  .engine-pill {
+    margin-left: 1.75rem;
+  }
+
+  .shortcuts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<div class="page">
+
+  <!-- Clock -->
+  <div class="clock-block">
+    <div class="clock" id="clock">00:00:00</div>
+    <div class="clock-date" id="clockDate"></div>
+  </div>
+
+  <!-- Logo -->
+  <div class="logo-block">
+    <div class="logo">Index</div>
+    <div class="logo-tag">Clear and Tor browsing workspace</div>
+  </div>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <div class="search-row">
+      <span class="search-icon">⌕</span>
+      <input class="search-input" id="q" placeholder="Search or enter address…" autofocus>
+      <div class="engine-pill" id="enginePill" title="Click to cycle engine">DDG</div>
+    </div>
+    <div class="search-hint">Enter to search &nbsp;·&nbsp; Shift+Enter to open in new tab &nbsp;·&nbsp; Click engine to switch</div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="shortcuts">
+    <div class="shortcuts-title">Quick Access</div>
+    <div class="shortcuts-grid" id="shortcutsGrid"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-item">
+      <div class="dot pulse green" id="torDot"></div>
+      <span id="torLabel">Tor Checking</span>
+    </div>
+    <div class="divider"></div>
+    <div class="status-item">
+      <div class="dot green pulse"></div>
+      <span>Proxy Active</span>
+    </div>
+    <div class="divider"></div>
+    <div class="status-item">
+      <div class="dot gray" id="modeDot"></div>
+      <span id="modeLabel">Clear Mode</span>
+    </div>
+    <div class="divider"></div>
+    <div class="status-item">
+      <div class="dot gray" id="ipDot"></div>
+      <span id="ipLabel">IP Hidden</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Clock ──────────────────────────────────────────────
+const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+function updateClock() {
+  const n = new Date();
+  const h = String(n.getHours()).padStart(2,'0');
+  const m = String(n.getMinutes()).padStart(2,'0');
+  const s = String(n.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+  document.getElementById('clockDate').textContent =
+    `${DAYS[n.getDay()]}, ${MONTHS[n.getMonth()]} ${n.getDate()}, ${n.getFullYear()}`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── Search engines ─────────────────────────────────────
+const ENGINES = [
+  { id: 'DDG',    url: 'https://duckduckgo.com/?q=' },
+  { id: 'Google', url: 'https://www.google.com/search?q=' },
+  { id: '.Onion', url: 'http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=' },
+  { id: 'Bing',   url: 'https://www.bing.com/search?q=' },
+  { id: 'Brave',  url: 'https://search.brave.com/search?q=' },
+];
+let ei = 0;
+document.getElementById('enginePill').addEventListener('click', () => {
+  ei = (ei + 1) % ENGINES.length;
+  document.getElementById('enginePill').textContent = ENGINES[ei].id;
+});
+
+function navigate(url) { window.location.href = url; }
+
+function resolveInput(raw) {
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^https?:\/\//.test(v)) return v;
+  if (/^[a-zA-Z0-9-]+(\.[a-zA-Z]{2,}|\.onion)(\/|$)/.test(v) && !v.includes(' '))
+    return 'http' + (v.includes('.onion') ? '' : 's') + '://' + v;
+  return ENGINES[ei].url + encodeURIComponent(v);
+}
+
+document.getElementById('q').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const url = resolveInput(e.target.value);
+  if (url) navigate(url);
+});
+
+// ── Quick Links ────────────────────────────────────────
+const SHORTCUTS = [
+  { icon: 'DD', label: 'DuckDuckGo',    url: 'https://duckduckgo.com' },
+  { icon: 'ON', label: 'DDG Onion',     url: 'http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion' },
+  { icon: 'GH', label: 'GitHub',        url: 'https://github.com' },
+  { icon: 'HN', label: 'Hacker News',   url: 'https://news.ycombinator.com' },
+  { icon: 'PM', label: 'Proton Mail',   url: 'https://proton.me/mail' },
+  { icon: 'PV', label: 'Proton VPN',    url: 'https://protonvpn.com' },
+];
+
+const grid = document.getElementById('shortcutsGrid');
+SHORTCUTS.forEach(s => {
+  const a = document.createElement('a');
+  a.className = 'shortcut';
+  a.href = s.url;
+  a.innerHTML = `<span class="shortcut-icon">${s.icon}</span><span class="shortcut-label">${s.label}</span>`;
+  grid.appendChild(a);
+});
+
+// ── Status polling ─────────────────────────────────────
+function updateStatus() {
+  if (document.hidden) return;  // skip when tab is not visible
+  fetch('__STATUS_URL__')
+    .then(r => r.json())
+    .then(d => {
+      const torDot   = document.getElementById('torDot');
+      const torLabel = document.getElementById('torLabel');
+      const modeDot  = document.getElementById('modeDot');
+      const modeLabel= document.getElementById('modeLabel');
+      const ipDot    = document.getElementById('ipDot');
+      const ipLabel  = document.getElementById('ipLabel');
+
+      if (d.tor_connected) {
+        torDot.className = 'dot green pulse';
+        torLabel.textContent = 'Tor Connected';
+      } else {
+        torDot.className = d.mode === 'tor' ? 'dot red' : 'dot yellow';
+        torLabel.textContent = d.mode === 'tor' ? 'Tor Unavailable' : 'Tor Standby';
+      }
+
+      if (d.mode === 'tor') {
+        modeDot.className = 'dot pulse';
+        modeDot.style.background = '#7c3aed';
+        modeDot.style.boxShadow  = '0 0 6px #7c3aed';
+        modeLabel.textContent = 'Tor Mode';
+        ipDot.className = 'dot green pulse';
+        ipLabel.textContent = 'IP Hidden';
+      } else {
+        modeDot.className = 'dot gray';
+        modeDot.style.background = '';
+        modeDot.style.boxShadow  = '';
+        modeLabel.textContent = 'Clear Mode';
+        ipDot.className = 'dot yellow';
+        ipLabel.textContent = 'IP Visible';
+      }
+    })
+    .catch(() => {});
+}
+updateStatus();
+setInterval(updateStatus, 5000);
+</script>
+</body>
+</html>
