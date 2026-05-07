@@ -16,8 +16,9 @@ from socketserver import ThreadingMixIn
 from config.settings import TOR_SOCKS_HOST, TOR_SOCKS_PORT
 from url_utils import is_onion_host
 
-LOCAL_HOST = "127.0.0.1"
-TUNNEL_IDLE_TIMEOUT = 120
+LOCAL_HOST            = "127.0.0.1"
+TUNNEL_IDLE_TIMEOUT   = 120
+ONION_MAX_BUFFER_BYTES = 50 * 1024 * 1024   # 50 MB
 
 TOR_HOST = TOR_SOCKS_HOST
 TOR_PORT = TOR_SOCKS_PORT
@@ -30,7 +31,6 @@ REWRITE_CONTENT_TYPES = (
     "text/plain",
 )
 
-# CSP directives that break HTTP subresources on onion pages — remove only these
 _CSP_BLOCKING_DIRECTIVES = frozenset({
     "upgrade-insecure-requests",
     "block-all-mixed-content",
@@ -39,20 +39,155 @@ _CSP_BLOCKING_DIRECTIVES = frozenset({
 HOME_HOST = "index.new"
 HOME_PAGE = os.path.join(os.path.dirname(__file__), "ui", "home.html")
 
-_lock = threading.Lock()
-_port: int = 0
-_state = None
+_lock       = threading.Lock()
+_port: int  = 0
+_state      = None
 _tor_client = None
 
+
+# ── Connection pool ────────────────────────────────────────────────────────
+
+_POOL_MAX_PER_HOST = 6
+_POOL_IDLE_TTL     = 45.0     # seconds before idle socket is discarded
+
+
+def _safe_close(s: socket.socket):
+    try:
+        s.close()
+    except OSError:
+        pass
+
+
+def _socket_alive(s: socket.socket) -> bool:
+    """Non-destructive check: True if the remote end hasn't closed the socket."""
+    try:
+        s.setblocking(False)
+        peek = s.recv(1, socket.MSG_PEEK)
+        s.setblocking(True)
+        return len(peek) > 0   # b"" means EOF
+    except BlockingIOError:
+        s.setblocking(True)
+        return True            # nothing to read yet — still open
+    except OSError:
+        return False
+
+
+class _HttpPool:
+    """
+    Per-(host, port) pool of reusable clearnet HTTP/1.1 keep-alive sockets.
+    Only used for clearnet, non-Tor, non-.onion traffic.
+    """
+
+    def __init__(self):
+        self._lock  = threading.Lock()
+        self._store: dict = {}   # (host, port) → [(sock, expire_at), ...]
+
+    def get(self, host: str, port: int) -> "socket.socket | None":
+        key = (host, port)
+        now = time.monotonic()
+        with self._lock:
+            bucket = self._store.get(key, [])
+            while bucket:
+                s, exp = bucket.pop()
+                if now < exp and _socket_alive(s):
+                    s.setblocking(True)
+                    return s
+                _safe_close(s)
+        return None
+
+    def put(self, host: str, port: int, s: socket.socket):
+        key  = (host, port)
+        exp  = time.monotonic() + _POOL_IDLE_TTL
+        with self._lock:
+            bucket = self._store.setdefault(key, [])
+            now    = time.monotonic()
+            bucket[:] = [(sk, e) for sk, e in bucket if now < e]
+            if len(bucket) >= _POOL_MAX_PER_HOST:
+                _safe_close(s)
+            else:
+                bucket.append((s, exp))
+
+    def close_all(self):
+        with self._lock:
+            for bucket in self._store.values():
+                for s, _ in bucket:
+                    _safe_close(s)
+            self._store.clear()
+
+
+_http_pool = _HttpPool()
+
+
+def _try_stream_pooled(
+    host: str, port: int,
+    sock: socket.socket,
+    wfile,
+) -> bool:
+    """
+    Read an HTTP/1.1 response from *sock* and write it to *wfile*.
+    If the response has a Content-Length we can read exactly that many bytes,
+    then return the socket to the pool and return True.
+    Otherwise stream until EOF and return False.
+    """
+    try:
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            chunk = sock.recv(8192)
+            if not chunk:
+                wfile.write(buf)
+                return False
+            buf += chunk
+
+        sep  = buf.index(b"\r\n\r\n")
+        hdrs = buf[:sep]
+        body = buf[sep + 4:]
+
+        cl_str    = _header_value(hdrs, "Content-Length").strip()
+        resp_conn = _header_value(hdrs, "Connection").lower()
+
+        if not cl_str or "close" in resp_conn:
+            wfile.write(buf)
+            while True:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                wfile.write(chunk)
+            return False
+
+        try:
+            cl = int(cl_str)
+        except ValueError:
+            wfile.write(buf)
+            while True:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                wfile.write(chunk)
+            return False
+
+        while len(body) < cl:
+            chunk = sock.recv(65536)
+            if not chunk:
+                wfile.write(hdrs + b"\r\n\r\n" + body)
+                return False
+            body += chunk
+
+        wfile.write(hdrs + b"\r\n\r\n" + body[:cl])
+        _http_pool.put(host, port, sock)
+        return True
+
+    except OSError:
+        return False
+
+
+# ── Public interface ───────────────────────────────────────────────────────
 
 def get_port() -> int:
     return _port
 
 
 def set_tor_mode(enabled: bool):
-    # Kept for backwards-compat with tests that don't use BrowserState.
-    # In normal app usage BrowserState is the source of truth.
-    pass
+    pass  # no-op — BrowserState is the source of truth
 
 
 def is_tor_mode() -> bool:
@@ -111,37 +246,31 @@ def _set_tcp_options(s: socket.socket):
 def _socks5_connect(host: str, port: int) -> socket.socket:
     """
     Open a connection to host:port through Tor's SOCKS5 proxy.
-    The hostname is sent as raw bytes to Tor (ATYP=0x03 / DOMAINNAME),
+    The hostname is sent as raw bytes (ATYP=0x03 / DOMAINNAME),
     so .onion addresses are NEVER resolved locally — Tor handles all DNS.
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(120)  # Tor circuits can be slow; 120s prevents mid-transfer cuts
+    s.settimeout(120)
     _set_tcp_options(s)
     s.connect((TOR_HOST, TOR_PORT))
 
-    # Step 1 — greeting: VER=5, NMETHODS=1, METHOD=0x00 (no auth)
     s.sendall(b"\x05\x01\x00")
     reply = _recv_exact(s, 2)
     if reply[0] != 0x05 or reply[1] != 0x00:
         raise RuntimeError(f"SOCKS5 auth negotiation failed: {reply.hex()}")
 
-    # Step 2 — CONNECT request with domain name type
     host_b = host.encode("ascii")
     if len(host_b) > 255:
         raise ValueError(f"Hostname too long ({len(host_b)} bytes): {host}")
 
     req = (
-        b"\x05"                  # VER = 5
-        b"\x01"                  # CMD = CONNECT
-        b"\x00"                  # RSV
-        b"\x03"                  # ATYP = DOMAINNAME
-        + bytes([len(host_b)])   # 1-byte length prefix
-        + host_b                 # hostname (sent verbatim to Tor, no DNS lookup)
+        b"\x05\x01\x00\x03"
+        + bytes([len(host_b)])
+        + host_b
         + port.to_bytes(2, "big")
     )
     s.sendall(req)
 
-    # Step 3 — read response
     resp = _recv_exact(s, 4)
     if resp[1] != 0x00:
         _err = {
@@ -156,21 +285,19 @@ def _socks5_connect(host: str, port: int) -> socket.socket:
         }
         raise RuntimeError(f"Tor refused: {_err.get(resp[1], f'code {resp[1]:02x}')}")
 
-    # Step 4 — skip the bound address field
     atyp = resp[3]
-    if atyp == 0x01:       # IPv4: 4 + 2
+    if atyp == 0x01:
         _recv_exact(s, 6)
-    elif atyp == 0x03:     # domain: 1-byte len + domain + 2
+    elif atyp == 0x03:
         dlen = _recv_exact(s, 1)[0]
         _recv_exact(s, dlen + 2)
-    elif atyp == 0x04:     # IPv6: 16 + 2
+    elif atyp == 0x04:
         _recv_exact(s, 18)
 
     return s
 
 
 def _direct_connect(host: str, port: int) -> socket.socket:
-    """Plain TCP connection using system DNS (clear mode)."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(30)
     _set_tcp_options(s)
@@ -179,8 +306,6 @@ def _direct_connect(host: str, port: int) -> socket.socket:
 
 
 def _make_connection(host: str, port: int) -> socket.socket:
-    # .onion addresses can only be reached through Tor — always use SOCKS5
-    # regardless of the mode flag so the user doesn't have to manually toggle.
     if is_tor_mode() or is_onion_host(host):
         return _socks5_connect(host, port)
     return _direct_connect(host, port)
@@ -247,8 +372,6 @@ def _remove_header(headers: bytes, name: str) -> bytes:
 
 
 def _strip_csp_blocking_directives(headers: bytes, name: str) -> bytes:
-    """Remove only upgrade-insecure-requests and block-all-mixed-content from a CSP header.
-    Preserves the rest of the policy (XSS protection, etc.)."""
     prefix = name.lower().encode("ascii") + b":"
     lines = []
     for line in headers.split(b"\r\n"):
@@ -260,7 +383,6 @@ def _strip_csp_blocking_directives(headers: bytes, name: str) -> bytes:
             ]
             if kept:
                 lines.append(f"{name}: {'; '.join(kept)}".encode("latin-1"))
-            # drop the header entirely if nothing survives
         else:
             lines.append(line)
     return b"\r\n".join(lines)
@@ -274,8 +396,6 @@ def _rewrite_onion_response(host: str, origin: str, response: bytes) -> bytes:
     if not body:
         return response
 
-    # Surgical CSP fix: only strip directives that block HTTP subresources.
-    # Preserving the rest of CSP keeps XSS protection intact.
     headers = _strip_csp_blocking_directives(headers, "Content-Security-Policy")
     headers = _strip_csp_blocking_directives(headers, "Content-Security-Policy-Report-Only")
 
@@ -286,7 +406,7 @@ def _rewrite_onion_response(host: str, origin: str, response: bytes) -> bytes:
     headers = _replace_header(headers, "Cache-Control", "no-store")
     headers = _replace_header(headers, "Pragma", "no-cache")
 
-    content_type = _header_value(headers, "Content-Type").lower()
+    content_type     = _header_value(headers, "Content-Type").lower()
     content_encoding = _header_value(headers, "Content-Encoding").lower()
     transfer_encoding = _header_value(headers, "Transfer-Encoding").lower()
     can_rewrite_body = (
@@ -317,8 +437,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
 
-    # ── Internal home page ────────────────────────────────────────────────
-
     def _is_home(self) -> bool:
         return self.headers.get("Host", "").split(":")[0] == HOME_HOST
 
@@ -339,7 +457,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _serve_status(self):
-        body = _status_payload()
+        body   = _status_payload()
         origin = f"http://127.0.0.1:{_port}"
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -349,7 +467,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_CONNECT(self):
-        """HTTPS tunnel — browser sends CONNECT host:port, we bridge to origin."""
         try:
             host, port_str = self.path.rsplit(":", 1)
             port = int(port_str)
@@ -372,10 +489,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 pass
         finally:
             if remote:
-                try:
-                    remote.close()
-                except OSError:
-                    pass
+                _safe_close(remote)
 
     def do_GET(self):
         if self._is_home(): self._serve_home(); return
@@ -392,18 +506,32 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def do_PUT(self):
         self._forward_http()
 
+    def do_DELETE(self):
+        self._forward_http()
+
+    def do_PATCH(self):
+        self._forward_http()
+
+    def do_OPTIONS(self):
+        if self._is_home(): self._serve_home(); return
+        self._forward_http()
+
     def _forward_http(self):
-        """Forward a plain HTTP request.
+        """
+        Forward a plain HTTP request.
+
+        Pool-eligible (clearnet GET/HEAD, no Tor, no .onion):
+          - Try a cached keep-alive socket first; retry once with a fresh socket
+            if the pooled one has gone stale.
+          - After reading the full response body (Content-Length known), return
+            the socket to the pool for the next request.
 
         Onion hosts:
           - Force Accept-Encoding: identity so bodies can be rewritten.
-          - Buffer the full response for URL rewriting before sending back.
-        Clearnet hosts:
-          - Forward the browser's original Accept-Encoding (gzip/brotli pass through).
-          - Stream the response directly — no buffering, lower memory usage.
+          - Buffer the full response for URL rewriting (capped at 50 MB).
 
-        WebSocket upgrade  → bidirectional _tunnel (frames go both ways)
-        SSE (event-stream) → one-way stream with no socket timeout
+        WebSocket upgrade  → bidirectional _tunnel
+        SSE (event-stream) → one-way stream, no socket timeout
         """
         host_header = self.headers.get("Host", "")
         if not host_header:
@@ -420,7 +548,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
         else:
             h, port = host_header, 80
 
-        # Chromium bypasses the proxy for loopback — serve internal endpoints.
         if h in ("127.0.0.1", "localhost") and port == _port:
             req_path = self.path.split("?")[0]
             if req_path == "/__status__":
@@ -429,92 +556,128 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.send_error(403, "Direct proxy access not allowed")
             return
 
-        # Strip scheme://host prefix → relative path for origin server
         path = self.path
         if "://" in path:
-            idx = path.find("/", path.index("://") + 3)
+            idx  = path.find("/", path.index("://") + 3)
             path = path[idx:] if idx != -1 else "/"
 
         is_onion = is_onion_host(h)
-        is_ws = self.headers.get("Upgrade", "").lower() == "websocket"
+        is_ws    = self.headers.get("Upgrade", "").lower() == "websocket"
+        is_sse   = "text/event-stream" in self.headers.get("Accept", "")
+
+        can_pool = (
+            not is_onion and not is_tor_mode() and
+            not is_ws and not is_sse and
+            self.command in ("GET", "HEAD")
+        )
 
         remote = None
-        try:
-            remote = _make_connection(h, port)
+        pooled = False
 
-            remote.sendall(f"{self.command} {path} {self.request_version}\r\n".encode())
+        for attempt in range(2):
+            try:
+                if attempt == 0 and can_pool:
+                    remote = _http_pool.get(h, port)
+                    pooled = remote is not None
+                if remote is None:
+                    remote = _make_connection(h, port)
+                    pooled = False
 
-            # Forward headers. Strip hop-by-hop headers and, for onion hosts,
-            # strip Accept-Encoding so we can force identity below.
-            for k, v in self.headers.items():
-                lower = k.lower()
-                if lower in ("proxy-connection", "connection"):
-                    continue
-                if lower == "accept-encoding" and is_onion:
-                    continue  # replaced with identity after the loop
-                remote.sendall(f"{k}: {v}\r\n".encode())
+                # ── Send request ───────────────────────────────────────────
+                remote.sendall(f"{self.command} {path} HTTP/1.1\r\n".encode())
 
-            if is_onion:
-                # Force plain bodies so the proxy can rewrite https:// → http://
-                remote.sendall(b"Accept-Encoding: identity\r\n")
-            remote.sendall(b"Connection: close\r\n")
-            remote.sendall(b"\r\n")
+                for k, v in self.headers.items():
+                    lower = k.lower()
+                    if lower in ("proxy-connection", "connection", "keep-alive"):
+                        continue
+                    if lower == "accept-encoding" and is_onion:
+                        continue
+                    remote.sendall(f"{k}: {v}\r\n".encode())
 
-            content_length = int(self.headers.get("Content-Length", 0))
-            if content_length > 0:
-                remote.sendall(self.rfile.read(content_length))
+                if is_onion:
+                    remote.sendall(b"Accept-Encoding: identity\r\n")
 
-            if is_ws:
-                remote.settimeout(None)
-                self._tunnel(self.connection, remote)
-                self.close_connection = True
-            else:
-                accept = self.headers.get("Accept", "")
-                if "text/event-stream" in accept:
+                remote.sendall(
+                    b"Connection: keep-alive\r\n" if can_pool
+                    else b"Connection: close\r\n"
+                )
+                remote.sendall(b"\r\n")
+
+                req_cl = int(self.headers.get("Content-Length", 0))
+                if req_cl > 0:
+                    remote.sendall(self.rfile.read(req_cl))
+
+                # ── Handle response ────────────────────────────────────────
+                if is_ws:
+                    remote.settimeout(None)
+                    self._tunnel(self.connection, remote)
+                    self.close_connection = True
+                    remote = None   # tunnel owns the socket now
+                elif is_sse:
                     remote.settimeout(None)
                     while True:
                         chunk = remote.recv(65536)
                         if not chunk:
                             break
                         self.wfile.write(chunk)
+                    self.close_connection = True
                 elif is_onion:
-                    # Buffer the full response so we can rewrite onion URLs.
-                    chunks = []
+                    chunks_buf: list[bytes] = []
+                    total      = 0
+                    over_limit = False
                     while True:
                         chunk = remote.recv(65536)
                         if not chunk:
                             break
-                        chunks.append(chunk)
-                    response = b"".join(chunks)
-                    response = _rewrite_onion_response(
-                        h,
-                        self.headers.get("Origin", ""),
-                        response,
-                    )
-                    self.wfile.write(response)
+                        total += len(chunk)
+                        if not over_limit and total > ONION_MAX_BUFFER_BYTES:
+                            over_limit = True
+                            self.wfile.write(b"".join(chunks_buf) + chunk)
+                            chunks_buf = []
+                        elif over_limit:
+                            self.wfile.write(chunk)
+                        else:
+                            chunks_buf.append(chunk)
+                    if not over_limit and chunks_buf:
+                        response = b"".join(chunks_buf)
+                        response = _rewrite_onion_response(
+                            h, self.headers.get("Origin", ""), response)
+                        self.wfile.write(response)
+                    self.close_connection = True
+                elif can_pool:
+                    returned = _try_stream_pooled(h, port, remote, self.wfile)
+                    if returned:
+                        remote = None   # in the pool — don't close
+                    self.close_connection = True
                 else:
-                    # Clearnet: stream directly — no buffering, no memory spike.
                     while True:
                         chunk = remote.recv(65536)
                         if not chunk:
                             break
                         self.wfile.write(chunk)
+                    self.close_connection = True
 
-                self.close_connection = True
+                break   # success — exit retry loop
 
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-        except Exception as exc:
-            try:
-                self.send_error(502, str(exc))
             except (BrokenPipeError, ConnectionResetError):
-                pass
-        finally:
-            if remote:
+                if pooled and attempt == 0:
+                    _safe_close(remote)
+                    remote = None
+                    continue    # stale pooled socket → retry
+                break           # client disconnected — not an error
+            except Exception as exc:
+                if pooled and attempt == 0:
+                    _safe_close(remote)
+                    remote = None
+                    continue    # stale pooled socket → retry
                 try:
-                    remote.close()
-                except OSError:
+                    self.send_error(502, str(exc))
+                except (BrokenPipeError, ConnectionResetError):
                     pass
+                break
+
+        if remote:
+            _safe_close(remote)
 
     @staticmethod
     def _tunnel(client: socket.socket, remote: socket.socket):
@@ -555,23 +718,22 @@ class _ThreadedServer(ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
 
 
-_server: _ThreadedServer | None = None
+_server: "_ThreadedServer | None" = None
 
 
 def start() -> int:
     global _server, _port
-    # Bind to port 0 — OS picks a random free port, eliminating the fixed 8118
-    # port that other local processes could predict or squat on.
     _server = _ThreadedServer((LOCAL_HOST, 0), ProxyHandler)
-    _port = _server.server_address[1]
+    _port   = _server.server_address[1]
     threading.Thread(target=_server.serve_forever, daemon=True).start()
     return _port
 
 
 def stop():
     global _server
+    _http_pool.close_all()
     if _server:
-        server = _server
+        server  = _server
         _server = None
         server.shutdown()
         server.server_close()

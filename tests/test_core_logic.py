@@ -8,7 +8,7 @@ from router import BrowsingMode, Router
 from search import SearchEngine
 from PyQt6.QtCore import QUrl
 from ui.request_interceptor import OnionRequestInterceptor
-from ui.web_page import _onion_url_normalizer_script
+from ui.web_page import _onion_url_normalizer_script, should_suppress_console_message
 from url_utils import forces_tor, is_onion_url, looks_like_url, normalize_url
 
 
@@ -105,6 +105,26 @@ class OnionNormalizerScriptTests(unittest.TestCase):
         self.assertIn("window.URL = WrappedURL", script)
         self.assertIn("Element.prototype.setAttribute", script)
         self.assertIn("HTMLAnchorElement.prototype", script)
+
+
+class WebPageConsoleFilterTests(unittest.TestCase):
+    def test_suppresses_report_only_csp_noise(self):
+        message = (
+            "[Report Only] Refused to connect to 'wss://kingofyadav.in/api/ws/public' "
+            "because it violates the following Content Security Policy directive: "
+            "\"connect-src 'none'\"."
+        )
+
+        self.assertTrue(should_suppress_console_message(message))
+
+    def test_keeps_real_csp_and_application_messages(self):
+        real_csp = (
+            "Refused to load the script 'https://example.com/app.js' because it violates "
+            "the following Content Security Policy directive: \"script-src 'self'\"."
+        )
+
+        self.assertFalse(should_suppress_console_message(real_csp))
+        self.assertFalse(should_suppress_console_message("Application started"))
 
 
 class ProxyServerTests(unittest.TestCase):

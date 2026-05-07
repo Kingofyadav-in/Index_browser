@@ -17,7 +17,7 @@ TOR_SOCKS_PORT = int(os.getenv("TOR_SOCKS_PORT", "9050"))
 TOR_CONTROL_PORT = int(os.getenv("TOR_CONTROL_PORT", "9051"))
 TOR_CONTROL_PASSWORD = os.getenv("TOR_CONTROL_PASSWORD", "")
 
-DEFAULT_SEARCH_ENGINE_CLEAR = os.getenv("DEFAULT_SEARCH_ENGINE_CLEAR", "https://www.google.com/search?q={}")
+DEFAULT_SEARCH_ENGINE_CLEAR = os.getenv("DEFAULT_SEARCH_ENGINE_CLEAR", "https://search.brave.com/search?q={}")
 DEFAULT_SEARCH_ENGINE_TOR = os.getenv("DEFAULT_SEARCH_ENGINE_TOR", "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q={}")
 DEFAULT_HOME_URL_CLEAR = os.getenv("DEFAULT_HOME_URL_CLEAR", "index://newtab/")
 DEFAULT_HOME_URL_TOR  = os.getenv("DEFAULT_HOME_URL_TOR",   "index://newtab/")

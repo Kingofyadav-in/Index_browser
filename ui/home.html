@@ -5,111 +5,101 @@
 <title>Index — New Tab</title>
 <style>
 :root {
-  --bg: #090b10;
-  --surface: #11151d;
-  --surface2: #171d27;
-  --border: #273140;
-  --border2: #3a4657;
-  --accent: #4f8cff;
-  --accent2: #21c187;
-  --text: #edf2f7;
-  --muted: #8994a6;
-  --green: #10b981;
-  --yellow: #f59e0b;
-  --red: #ef4444;
+  --bg:       #1e1e21;
+  --surface:  #28282c;
+  --surface2: #323236;
+  --input-bg: #28282c;
+  --border:   #44444a;
+  --accent:   #0a84ff;
+  --tor:      #bf5af2;
+  --text:     #f0f0f5;
+  --muted:    #9898a0;
+  --green:    #30d158;
+  --amber:    #ffd60a;
+  --red:      #ff453a;
 }
 
-*{margin:0;padding:0;box-sizing:border-box;}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-body {
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.035), transparent 260px),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 88px),
-    var(--bg);
+html, body {
+  height: 100%;
+  background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
   overflow-x: hidden;
 }
 
-.bg-grid {
-  display: none;
+/* ── Page layout — three rows: top spacer / center content / bottom bar ── */
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  align-items: center;
+  padding: 0 1rem 1.5rem;
 }
 
-/* ── Layout ── */
-.page {
-  position: relative;
-  width: 100%;
-  max-width: 920px;
-  min-height: 100vh;
+/* ── Center block ─────────────────────────────────────────────────────── */
+.center {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  padding: 2.5rem 1.5rem;
+  gap: 1.6rem;
+  padding-top: 6vh;
 }
 
-/* ── Clock ── */
-.clock-block { text-align: center; }
-.clock {
-  font-size: clamp(2.8rem, 7vw, 4.8rem);
-  font-weight: 650;
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-  line-height: 1;
-}
-.clock-date {
-  color: var(--muted);
-  font-size: .85rem;
-  letter-spacing: .12rem;
-  text-transform: uppercase;
-  margin-top: .5rem;
-}
-
-/* ── Logo ── */
-.logo-block { text-align: center; }
+/* ── Logo ─────────────────────────────────────────────────────────────── */
 .logo {
-  font-size: 2.5rem;
+  font-size: clamp(3rem, 9vw, 6rem);
   font-weight: 800;
-  letter-spacing: .2rem;
+  letter-spacing: .12em;
   text-transform: uppercase;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  background: linear-gradient(135deg, #0a84ff 0%, #bf5af2 60%, #ff375f 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  filter: none;
-}
-.logo-tag {
-  color: var(--muted);
-  font-size: .72rem;
-  letter-spacing: .25rem;
-  text-transform: uppercase;
-  margin-top: .3rem;
+  line-height: 1;
+  user-select: none;
 }
 
-/* ── Search ── */
-.search-wrap { width: 100%; }
+/* ── Search bar — Google style ───────────────────────────────────────── */
+.search-wrap {
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .65rem;
+}
 
-.search-row {
+.search-box {
+  width: 100%;
   display: flex;
   align-items: center;
-  background: var(--surface);
+  background: var(--input-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: .85rem 1.1rem;
-  gap: .75rem;
-  transition: border-color .2s, box-shadow .2s;
+  border-radius: 26px;
+  padding: .78rem 1.2rem .78rem 1rem;
+  gap: .7rem;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+  cursor: text;
 }
-.search-row:focus-within {
+.search-box:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79,140,255,.18);
+  background: #232328;
+  box-shadow: 0 1px 18px rgba(10,132,255,.18), 0 0 0 3px rgba(10,132,255,.10);
 }
-.search-icon { font-size: 1rem; color: var(--muted); flex-shrink: 0; }
+.search-box:hover:not(:focus-within) {
+  border-color: #666;
+  box-shadow: 0 1px 8px rgba(0,0,0,.35);
+}
+
+.search-icon {
+  font-size: 1.1rem;
+  color: var(--muted);
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
 .search-input {
   flex: 1;
   background: none;
@@ -117,185 +107,219 @@ body {
   outline: none;
   color: var(--text);
   font-size: 1rem;
+  font-family: inherit;
+  caret-color: var(--accent);
 }
 .search-input::placeholder { color: var(--muted); }
 
 .engine-pill {
+  flex-shrink: 0;
   background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--accent);
-  padding: .2rem .65rem;
-  font-size: .72rem;
+  padding: .18rem .62rem;
+  font-size: .7rem;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background .2s;
   user-select: none;
+  transition: background .15s, color .15s;
+  letter-spacing: .02em;
 }
-.engine-pill:hover { background: rgba(124,111,255,.28); }
+.engine-pill:hover { background: rgba(10,132,255,.18); }
 
-.search-hint { display: none; }
+/* ── Shortcuts ───────────────────────────────────────────────────────── */
+.shortcuts-wrap {
+  width: 100%;
+  max-width: 580px;
+}
 
-/* ── Quick Links ── */
-.shortcuts { width: 100%; }
-.shortcuts-title {
+.shortcuts-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: .45rem;
+}
+.edit-btn {
+  background: none;
+  border: none;
   color: var(--muted);
-  font-size: .72rem;
-  letter-spacing: .18rem;
+  font-size: .68rem;
+  font-family: inherit;
+  letter-spacing: .1rem;
   text-transform: uppercase;
-  margin-bottom: .75rem;
+  cursor: pointer;
+  padding: .1rem .4rem;
+  border-radius: 5px;
+  transition: background .15s, color .15s;
 }
+.edit-btn:hover { background: var(--surface2); color: var(--text); }
+
 .shortcuts-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: center;
 }
+
 .shortcut {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: .4rem;
-  padding: .9rem .4rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  gap: .35rem;
+  padding: .7rem .55rem;
+  width: 80px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
   text-decoration: none;
-  color: var(--text);
-  font-size: .72rem;
+  color: var(--muted);
+  font-size: .67rem;
   text-align: center;
-  transition: border-color .2s, transform .2s, background .2s;
+  transition: background .15s, border-color .15s, color .15s, transform .12s;
   cursor: pointer;
+  position: relative;
 }
 .shortcut:hover {
-  border-color: var(--accent);
-  background: #151b25;
-  transform: translateY(-3px);
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+  transform: translateY(-2px);
 }
+
 .shortcut-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
+  width: 36px; height: 36px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #202838;
-  color: var(--accent2);
-  font-size: .8rem;
-  font-weight: 800;
-  line-height: 1;
+  background: var(--surface);
+  color: var(--text);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  transition: background .15s;
 }
-.shortcut-label { color: var(--muted); }
+.shortcut:hover .shortcut-icon { background: var(--surface2); }
 
-/* ── Status Bar ── */
+.shortcut-remove {
+  display: none;
+  position: absolute;
+  top: -5px; right: -5px;
+  width: 18px; height: 18px;
+  background: var(--red);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 2px 5px rgba(0,0,0,.5);
+}
+body.editing .shortcut-remove { display: block; }
+body.editing .shortcut:hover  { transform: none; }
+
+.shortcut-add {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: .35rem;
+  padding: .7rem .55rem;
+  width: 80px;
+  background: transparent;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: .67rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.shortcut-add:hover { border-color: var(--accent); color: var(--accent); }
+.shortcut-add-icon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font-size: 1.3rem;
+  transition: background .15s;
+}
+body.editing .shortcut-add { display: flex; }
+
+/* ── Bottom status strip ─────────────────────────────────────────────── */
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: .6rem 1.25rem;
-  font-size: .75rem;
-  color: var(--muted);
-  width: 100%;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: .55rem 1rem;
+  font-size: .72rem;
+  color: var(--muted);
+  border-top: 1px solid #2a2a2e;
+  margin-top: 1rem;
 }
-.status-item { display: flex; align-items: center; gap: .4rem; }
+.status-item { display: flex; align-items: center; gap: .35rem; }
 .dot {
-  width: 7px; height: 7px;
+  width: 6px; height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.dot.green  { background: var(--green);  box-shadow: 0 0 6px var(--green); }
-.dot.yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
-.dot.red    { background: var(--red);    box-shadow: 0 0 6px var(--red); }
+.dot.green  { background: var(--green);  box-shadow: 0 0 5px var(--green); }
+.dot.amber  { background: var(--amber);  box-shadow: 0 0 5px var(--amber); }
+.dot.red    { background: var(--red);    box-shadow: 0 0 5px var(--red); }
+.dot.purple { background: var(--tor);    box-shadow: 0 0 5px var(--tor); }
 .dot.gray   { background: var(--muted); }
-.dot.pulse  { animation: dotpulse 2s ease-in-out infinite; }
-@keyframes dotpulse {
-  0%,100%{opacity:1;} 50%{opacity:.35;}
-}
-.divider { width: 1px; height: 16px; background: var(--border); }
+.dot.pulse  { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-@media (max-width: 760px) {
-  .page {
-    min-height: auto;
-    justify-content: flex-start;
-    padding: 2rem 1rem;
-  }
+.divider { width: 1px; height: 12px; background: var(--border); }
 
-  .shortcuts-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .status-bar {
-    flex-wrap: wrap;
-    gap: .75rem;
-  }
-
-  .divider {
-    display: none;
-  }
-}
-
-@media (max-width: 430px) {
-  .clock {
-    font-size: 2.4rem;
-  }
-
-  .logo {
-    font-size: 2rem;
-  }
-
-  .search-row {
-    flex-wrap: wrap;
-  }
-
-  .engine-pill {
-    margin-left: 1.75rem;
-  }
-
-  .shortcuts-grid {
-    grid-template-columns: 1fr;
-  }
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .logo { font-size: 2.8rem; }
+  .search-box { padding: .7rem 1rem; }
+  .shortcuts-grid { gap: .35rem; }
+  .shortcut, .shortcut-add { width: 68px; }
+  .status-bar { gap: .6rem; }
+  .divider { display: none; }
 }
 </style>
 </head>
 <body>
-<div class="bg-grid"></div>
 
 <div class="page">
+  <!-- ── Centre content ─────────────────────────────────────────── -->
+  <div class="center">
 
-  <!-- Clock -->
-  <div class="clock-block">
-    <div class="clock" id="clock">00:00:00</div>
-    <div class="clock-date" id="clockDate"></div>
-  </div>
-
-  <!-- Logo -->
-  <div class="logo-block">
+    <!-- Logo -->
     <div class="logo">Index</div>
-    <div class="logo-tag">Clear and Tor browsing workspace</div>
-  </div>
 
-  <!-- Search -->
-  <div class="search-wrap">
-    <div class="search-row">
-      <span class="search-icon">⌕</span>
-      <input class="search-input" id="q" placeholder="Search or enter address…" autofocus>
-      <div class="engine-pill" id="enginePill" title="Click to cycle engine">DDG</div>
+    <!-- Search -->
+    <div class="search-wrap">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input class="search-input" id="q" placeholder="Search or enter address…" autofocus>
+        <div class="engine-pill" id="enginePill" title="Click to switch engine">DDG</div>
+      </div>
     </div>
-    <div class="search-hint">Enter to search &nbsp;·&nbsp; Shift+Enter to open in new tab &nbsp;·&nbsp; Click engine to switch</div>
+
+    <!-- Shortcuts -->
+    <div class="shortcuts-wrap">
+      <div class="shortcuts-header">
+        <button class="edit-btn" id="editBtn" onclick="toggleEdit()">Edit</button>
+      </div>
+      <div class="shortcuts-grid" id="shortcutsGrid"></div>
+    </div>
+
   </div>
 
-  <!-- Quick Links -->
-  <div class="shortcuts">
-    <div class="shortcuts-title">Quick Access</div>
-    <div class="shortcuts-grid" id="shortcutsGrid"></div>
-  </div>
-
-  <!-- Status -->
-  <div class="status-bar" id="statusBar">
+  <!-- ── Status strip ───────────────────────────────────────────── -->
+  <div class="status-bar">
     <div class="status-item">
-      <div class="dot pulse green" id="torDot"></div>
+      <div class="dot pulse gray" id="torDot"></div>
       <span id="torLabel">Tor Checking</span>
     </div>
     <div class="divider"></div>
@@ -311,37 +335,19 @@ body {
     <div class="divider"></div>
     <div class="status-item">
       <div class="dot gray" id="ipDot"></div>
-      <span id="ipLabel">IP Hidden</span>
+      <span id="ipLabel">IP Visible</span>
     </div>
   </div>
-
 </div>
 
 <script>
-// ── Clock ──────────────────────────────────────────────
-const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-const MONTHS = ['January','February','March','April','May','June',
-                'July','August','September','October','November','December'];
-
-function updateClock() {
-  const n = new Date();
-  const h = String(n.getHours()).padStart(2,'0');
-  const m = String(n.getMinutes()).padStart(2,'0');
-  const s = String(n.getSeconds()).padStart(2,'0');
-  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
-  document.getElementById('clockDate').textContent =
-    `${DAYS[n.getDay()]}, ${MONTHS[n.getMonth()]} ${n.getDate()}, ${n.getFullYear()}`;
-}
-updateClock();
-setInterval(updateClock, 1000);
-
-// ── Search engines ─────────────────────────────────────
+// ── Search engines ───────────────────────────────────────────────────────
 const ENGINES = [
   { id: 'DDG',    url: 'https://duckduckgo.com/?q=' },
   { id: 'Google', url: 'https://www.google.com/search?q=' },
-  { id: '.Onion', url: 'http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=' },
   { id: 'Bing',   url: 'https://www.bing.com/search?q=' },
   { id: 'Brave',  url: 'https://search.brave.com/search?q=' },
+  { id: '.Onion', url: 'http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=' },
 ];
 let ei = 0;
 document.getElementById('enginePill').addEventListener('click', () => {
@@ -349,76 +355,119 @@ document.getElementById('enginePill').addEventListener('click', () => {
   document.getElementById('enginePill').textContent = ENGINES[ei].id;
 });
 
-function navigate(url) { window.location.href = url; }
-
 function resolveInput(raw) {
   const v = raw.trim();
   if (!v) return null;
   if (/^https?:\/\//.test(v)) return v;
   if (/^[a-zA-Z0-9-]+(\.[a-zA-Z]{2,}|\.onion)(\/|$)/.test(v) && !v.includes(' '))
-    return 'http' + (v.includes('.onion') ? '' : 's') + '://' + v;
+    return (v.includes('.onion') ? 'http' : 'https') + '://' + v;
   return ENGINES[ei].url + encodeURIComponent(v);
 }
-
 document.getElementById('q').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   const url = resolveInput(e.target.value);
-  if (url) navigate(url);
+  if (url) window.location.href = url;
 });
 
-// ── Quick Links ────────────────────────────────────────
-const SHORTCUTS = [
-  { icon: 'DD', label: 'DuckDuckGo',    url: 'https://duckduckgo.com' },
-  { icon: 'ON', label: 'DDG Onion',     url: 'http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion' },
-  { icon: 'GH', label: 'GitHub',        url: 'https://github.com' },
-  { icon: 'HN', label: 'Hacker News',   url: 'https://news.ycombinator.com' },
-  { icon: 'PM', label: 'Proton Mail',   url: 'https://proton.me/mail' },
-  { icon: 'PV', label: 'Proton VPN',    url: 'https://protonvpn.com' },
+// ── Shortcuts (localStorage) ─────────────────────────────────────────────
+const DEFAULT_SHORTCUTS = [
+  { icon: 'DD', label: 'DuckDuckGo',  url: 'https://duckduckgo.com' },
+  { icon: 'ON', label: 'DDG Onion',   url: 'http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion' },
+  { icon: 'GH', label: 'GitHub',      url: 'https://github.com' },
+  { icon: 'HN', label: 'Hacker News', url: 'https://news.ycombinator.com' },
+  { icon: 'PM', label: 'Proton Mail', url: 'https://proton.me/mail' },
+  { icon: 'WK', label: 'Wikipedia',   url: 'https://wikipedia.org' },
 ];
+const LS_KEY = 'index_shortcuts_v1';
 
-const grid = document.getElementById('shortcutsGrid');
-SHORTCUTS.forEach(s => {
-  const a = document.createElement('a');
-  a.className = 'shortcut';
-  a.href = s.url;
-  a.innerHTML = `<span class="shortcut-icon">${s.icon}</span><span class="shortcut-label">${s.label}</span>`;
-  grid.appendChild(a);
-});
+function loadShortcuts() {
+  try { const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : DEFAULT_SHORTCUTS; }
+  catch { return DEFAULT_SHORTCUTS; }
+}
+function saveShortcuts(arr) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(arr)); } catch {}
+}
+function iconLetters(url) {
+  try { return new URL(url).hostname.replace(/^www\./,'').slice(0,2).toUpperCase(); }
+  catch { return '??'; }
+}
 
-// ── Status polling ─────────────────────────────────────
+let shortcuts = loadShortcuts();
+
+function renderShortcuts() {
+  const grid = document.getElementById('shortcutsGrid');
+  grid.innerHTML = '';
+  shortcuts.forEach((s, i) => {
+    const a = document.createElement('a');
+    a.className = 'shortcut';
+    a.href = s.url;
+    a.innerHTML = `
+      <span class="shortcut-icon">${s.icon}</span>
+      <span>${s.label}</span>
+      <span class="shortcut-remove" data-i="${i}">×</span>`;
+    a.addEventListener('click', e => {
+      if (document.body.classList.contains('editing')) e.preventDefault();
+    });
+    a.querySelector('.shortcut-remove').addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      shortcuts.splice(i, 1);
+      saveShortcuts(shortcuts);
+      renderShortcuts();
+    });
+    grid.appendChild(a);
+  });
+
+  const add = document.createElement('div');
+  add.className = 'shortcut-add';
+  add.innerHTML = '<span class="shortcut-add-icon">＋</span><span>Add</span>';
+  add.addEventListener('click', () => {
+    const url = prompt('URL:');
+    if (!url || !url.trim()) return;
+    const label = prompt('Label:', iconLetters(url.trim())) || iconLetters(url.trim());
+    shortcuts.push({ icon: iconLetters(url.trim()), label, url: url.trim() });
+    saveShortcuts(shortcuts);
+    renderShortcuts();
+  });
+  grid.appendChild(add);
+}
+
+function toggleEdit() {
+  const on = document.body.classList.toggle('editing');
+  document.getElementById('editBtn').textContent = on ? 'Done' : 'Edit';
+}
+
+renderShortcuts();
+
+// ── Status polling ───────────────────────────────────────────────────────
 function updateStatus() {
-  if (document.hidden) return;  // skip when tab is not visible
+  if (document.hidden) return;
   fetch('__STATUS_URL__')
     .then(r => r.json())
     .then(d => {
-      const torDot   = document.getElementById('torDot');
-      const torLabel = document.getElementById('torLabel');
-      const modeDot  = document.getElementById('modeDot');
-      const modeLabel= document.getElementById('modeLabel');
-      const ipDot    = document.getElementById('ipDot');
-      const ipLabel  = document.getElementById('ipLabel');
+      const torDot    = document.getElementById('torDot');
+      const torLabel  = document.getElementById('torLabel');
+      const modeDot   = document.getElementById('modeDot');
+      const modeLabel = document.getElementById('modeLabel');
+      const ipDot     = document.getElementById('ipDot');
+      const ipLabel   = document.getElementById('ipLabel');
 
       if (d.tor_connected) {
         torDot.className = 'dot green pulse';
         torLabel.textContent = 'Tor Connected';
       } else {
-        torDot.className = d.mode === 'tor' ? 'dot red' : 'dot yellow';
+        torDot.className = d.mode === 'tor' ? 'dot red' : 'dot amber';
         torLabel.textContent = d.mode === 'tor' ? 'Tor Unavailable' : 'Tor Standby';
       }
 
       if (d.mode === 'tor') {
-        modeDot.className = 'dot pulse';
-        modeDot.style.background = '#7c3aed';
-        modeDot.style.boxShadow  = '0 0 6px #7c3aed';
+        modeDot.className = 'dot purple pulse';
         modeLabel.textContent = 'Tor Mode';
         ipDot.className = 'dot green pulse';
         ipLabel.textContent = 'IP Hidden';
       } else {
         modeDot.className = 'dot gray';
-        modeDot.style.background = '';
-        modeDot.style.boxShadow  = '';
         modeLabel.textContent = 'Clear Mode';
-        ipDot.className = 'dot yellow';
+        ipDot.className = 'dot amber';
         ipLabel.textContent = 'IP Visible';
       }
     })

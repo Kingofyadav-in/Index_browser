@@ -3,8 +3,9 @@ from enum import Enum
 from url_utils import forces_tor
 
 class BrowsingMode(Enum):
-    CLEAR = "clear"
-    TOR = "tor"
+    CLEAR     = "clear"
+    TOR       = "tor"
+    INCOGNITO = "incognito"
 
 
 class Router:

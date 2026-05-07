@@ -80,8 +80,9 @@ class LogPanel(QDockWidget):
         """)
         root.addWidget(self._view)
 
-        self._entries = []   # list of (level_int_or_str, html_line)
-        self._count = 0
+        self._entries = []   # list of (kind, level, html)
+        self._count   = 0
+        self._MAX     = 3000   # cap total stored entries to keep refilter fast
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -144,8 +145,21 @@ class LogPanel(QDockWidget):
         }.get(level, True)
 
     def _maybe_append(self, kind: str, level: int, html: str):
+        # Evict oldest quarter when cap is reached so refilter stays fast
+        if len(self._entries) >= self._MAX:
+            keep = self._MAX * 3 // 4
+            self._entries = self._entries[-keep:]
+            self._view.clear()
+            for ek, el, eh in self._entries:
+                if ek == "js" and not self._level_visible(el):
+                    continue
+                self._append_html(eh)
+
         if kind == "js" and not self._level_visible(level):
             return
+        self._append_html(html)
+
+    def _append_html(self, html: str):
         cursor = self._view.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
         self._view.setTextCursor(cursor)
@@ -154,14 +168,10 @@ class LogPanel(QDockWidget):
 
     def _refilter(self):
         self._view.clear()
-        for entry in self._entries:
-            kind, level, html = entry
+        for kind, level, html in self._entries:
             if kind == "js" and not self._level_visible(level):
                 continue
-            cursor = self._view.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            self._view.setTextCursor(cursor)
-            self._view.insertHtml(html + "<br>")
+            self._append_html(html)
 
     def _clear(self):
         self._entries.clear()

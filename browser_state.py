@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from threading import Lock
 
 from router import BrowsingMode
 
 
-@dataclass
 class BrowserState:
     """Thread-safe shared browser mode state."""
 
-    _mode: BrowsingMode = BrowsingMode.CLEAR
-
-    def __post_init__(self):
+    def __init__(self, mode: BrowsingMode = BrowsingMode.CLEAR):
+        self._mode = mode
         self._lock = Lock()
 
     def set_mode(self, mode: BrowsingMode):

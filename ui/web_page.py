@@ -2,28 +2,55 @@ from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineScript
 from PyQt6.QtCore import pyqtSignal
 
 from config.settings import LOG_SLOW_ONION_RESOURCES, SLOW_ONION_RESOURCE_MS
+from url_utils import forces_tor
 
 # Noise from servers we can't control — suppress permanently
 _SUPPRESS = [
     "Permissions-Policy header: Unrecognized feature:",
     "Error with Permissions-Policy",
     "was preloaded using link preload but not used",
+    "Request Autofill.enable failed",
+    "Request Autofill.setAddresses failed",
+    "wasn't found",
 ]
+
+
+def should_suppress_console_message(message: str) -> bool:
+    if any(pattern in message for pattern in _SUPPRESS):
+        return True
+    return (
+        "[Report Only]" in message and
+        "Content Security Policy directive" in message
+    )
 
 
 class WebPage(QWebEnginePage):
     """Custom page that filters console noise and re-emits clean log entries."""
     log_entry = pyqtSignal(int, str, int, str)   # level, message, line, source
+    onion_navigation_detected = pyqtSignal(str)  # url — fired before main-frame .onion load
+    special_action = pyqtSignal(str, str)        # action, full index:// url string
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, profile=None, parent=None):
+        if profile is not None:
+            super().__init__(profile, parent)
+        else:
+            super().__init__(parent)
         if LOG_SLOW_ONION_RESOURCES:
             self._install_resource_timing_script()
 
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        if url.scheme() == "index":
+            host = url.host()
+            if host in ("retry", "try-tor", "archive", "search"):
+                self.special_action.emit(host, url.toString())
+            return False  # always block index:// navigations in the engine
+        if is_main_frame and forces_tor(url.toString()):
+            self.onion_navigation_detected.emit(url.toString())
+        return True
+
     def javaScriptConsoleMessage(self, level, message, line_number, source_id):
-        for pattern in _SUPPRESS:
-            if pattern in message:
-                return   # swallowed — never reaches terminal or log panel
+        if should_suppress_console_message(message):
+            return   # swallowed — never reaches terminal or log panel
         # Re-emit for the log panel; don't call super() to keep terminal clean
         self.log_entry.emit(
             level.value if hasattr(level, "value") else int(level),
